@@ -1,0 +1,8 @@
+{
+  "appId": "com.enough.app",
+  "appName": "Enough",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
