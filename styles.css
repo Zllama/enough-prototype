@@ -601,3 +601,97 @@ h1 {
   font-size: 0.85rem;
   padding: 0.5rem 1rem;
 }
+
+/* ── Sky mode overrides ── */
+body.sky-mode {
+  --text: #1a2a3a;
+  --text-muted: #3a5060;
+  --accent: #2a4a6a;
+  --accent-soft: rgba(30, 60, 90, 0.15);
+  --border: rgba(0, 0, 0, 0.12);
+}
+
+body.sky-mode .screen-home .home-tagline {
+  color: #1a2a3a;
+  text-shadow: 0 1px 6px rgba(255,255,255,0.7);
+}
+
+body.sky-mode .screen-home .logo {
+  color: #1a2a3a;
+  text-shadow: 0 1px 4px rgba(255,255,255,0.6);
+}
+
+body.sky-mode .btn {
+  color: #1a2a3a;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+body.sky-mode .btn-primary {
+  background: rgba(30, 60, 90, 0.85);
+  color: #fff;
+}
+
+body.sky-mode .btn-ghost {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+body.sky-mode .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+body.sky-mode .screen {
+  background: rgba(135, 206, 235, 0.88);
+}
+
+body.sky-mode .control-label {
+  color: #1a2a3a;
+}
+
+body.sky-mode .drift-slider {
+  accent-color: #3a6080;
+}
+
+body.sky-mode .chip {
+  background: rgba(255, 255, 255, 0.4);
+  color: #1a2a3a;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.sky-mode .chip.selected {
+  background: rgba(30, 60, 90, 0.8);
+  color: #fff;
+}
+
+body.sky-mode .chip-group-toggle {
+  color: #1a2a3a;
+}
+
+body.sky-mode .section-label {
+  color: #3a5060;
+}
+
+body.sky-mode .lead {
+  color: #1a2a3a;
+}
+
+body.sky-mode .text-input {
+  background: rgba(255, 255, 255, 0.5);
+  color: #1a2a3a;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+body.sky-mode .color-btn {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+body.sky-mode .reframe-option {
+  background: rgba(255, 255, 255, 0.4);
+  color: #1a2a3a;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.sky-mode .reframe-option.selected {
+  background: rgba(30, 60, 90, 0.85);
+  color: #fff;
+}

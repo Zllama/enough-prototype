@@ -335,6 +335,8 @@ class FogCanvas {
     const h = window.innerHeight;
     const intensity = frag.intensity || 0.5;
     const spread = Math.max(0.6, 1 - total * 0.02);
+    const lobeOptions = theme.cloudLobes || [4, 5, 6, 7];
+    const numLobes = lobeOptions[Math.floor(Math.random() * lobeOptions.length)];
 
     return {
       pctX: frag.x / 100,
@@ -342,10 +344,11 @@ class FogCanvas {
       x: (frag.x / 100) * w,
       y: (frag.y / 100) * h,
       color: frag.color || "#8b9cb3",
-      baseOpacity: 0.18 + intensity * 0.32,
+      baseOpacity: theme.id === "sky"
+        ? 0.08 + intensity * 0.2
+        : 0.18 + intensity * 0.32,
       radius: theme.cloudMinRadius + intensity * (theme.cloudMaxRadius - theme.cloudMinRadius),
-      // Irregular shape: multiple offset lobes
-      lobes: 4 + Math.floor(Math.random() * 4),
+      lobes: numLobes,
       lobeOffsets: Array.from({ length: 7 }, () => ({
         dx: (Math.random() - 0.5) * 0.7,
         dy: (Math.random() - 0.5) * 0.7,
@@ -355,8 +358,8 @@ class FogCanvas {
       driftSpeedY: (0.15 + Math.random() * 0.3) * spread * theme.driftSpeed,
       driftPhaseX: Math.random() * Math.PI * 2,
       driftPhaseY: Math.random() * Math.PI * 2,
-      driftAmpX: 20 + Math.random() * 40,
-      driftAmpY: 15 + Math.random() * 30,
+      driftAmpX: theme.id === "sky" ? 10 + Math.random() * 15 : 20 + Math.random() * 40,
+      driftAmpY: theme.id === "sky" ? 6 + Math.random() * 10 : 15 + Math.random() * 30,
       opacityPulseSpeed: 0.0002 + Math.random() * 0.0003,
       opacityPulsePhase: Math.random() * Math.PI * 2,
       opacityPulseAmp: 0.06,
@@ -374,6 +377,8 @@ class FogCanvas {
         { x: 0.15, y: 0.75 },
       ];
       const pos = positions[i] || { x: 0.5, y: 0.5 };
+      const lobeOptions = theme.cloudLobes || [5, 6, 7];
+      const numLobes = lobeOptions[Math.floor(Math.random() * lobeOptions.length)];
 
       return {
         pctX: pos.x,
@@ -383,18 +388,18 @@ class FogCanvas {
         color: layer.hex,
         baseOpacity: layer.opacity,
         radius: theme.cloudMaxRadius * 0.9,
-        lobes: 5 + Math.floor(Math.random() * 3),
+        lobes: numLobes,
         lobeOffsets: Array.from({ length: 7 }, () => ({
           dx: (Math.random() - 0.5) * 0.6,
           dy: (Math.random() - 0.5) * 0.6,
           scale: 0.4 + Math.random() * 0.6,
         })),
-        driftSpeedX: 0.0001 + Math.random() * 0.00015,
-        driftSpeedY: 0.00008 + Math.random() * 0.00012,
+        driftSpeedX: theme.id === "sky" ? 0.00005 + Math.random() * 0.00008 : 0.0001 + Math.random() * 0.00015,
+        driftSpeedY: theme.id === "sky" ? 0.00004 + Math.random() * 0.00006 : 0.00008 + Math.random() * 0.00012,
         driftPhaseX: Math.random() * Math.PI * 2,
         driftPhaseY: Math.random() * Math.PI * 2,
-        driftAmpX: 30 + Math.random() * 20,
-        driftAmpY: 20 + Math.random() * 15,
+        driftAmpX: theme.id === "sky" ? 10 + Math.random() * 10 : 30 + Math.random() * 20,
+        driftAmpY: theme.id === "sky" ? 6 + Math.random() * 8 : 20 + Math.random() * 15,
         opacityPulseSpeed: 0.00015 + Math.random() * 0.0002,
         opacityPulsePhase: Math.random() * Math.PI * 2,
         opacityPulseAmp: 0.03,
@@ -423,9 +428,11 @@ class FogCanvas {
     }
     ctx.fillRect(0, 0, w, h);
 
+    const isSky = theme.id === "sky";
+
     // Apply blur for cloud softness
     ctx.filter = `blur(${this.clouds[0]?.blur || 70}px)`;
-    ctx.globalCompositeOperation = theme.id === "sky" ? "source-over" : "screen";
+    ctx.globalCompositeOperation = isSky ? "source-over" : "screen";
 
     // Decay squish
     if (this.squish > 0.01) this.squish *= 0.95;
@@ -434,8 +441,11 @@ class FogCanvas {
       const cx = c.x + Math.sin(time * c.driftSpeedX * speedMult + c.driftPhaseX) * c.driftAmpX;
       const cy = c.y + Math.cos(time * c.driftSpeedY * speedMult + c.driftPhaseY) * c.driftAmpY;
       const isPlaying = isCloudSoundPlaying(c.color);
-      const playBoost = isPlaying ? 0.15 : 0;
+      const playBoost = isPlaying ? (isSky ? 0.12 : 0.15) : 0;
       const opacity = c.baseOpacity + Math.sin(time * c.opacityPulseSpeed * speedMult + c.opacityPulsePhase) * c.opacityPulseAmp + playBoost;
+
+      // In sky mode, playing clouds tint toward their actual color
+      const drawColor = (isSky && isPlaying) ? c.color : (isSky ? "#ffffff" : c.color);
 
       // Draw irregular shape: multiple overlapping radial gradients at offset positions
       for (let l = 0; l < c.lobes; l++) {
@@ -456,8 +466,8 @@ class FogCanvas {
         }
 
         const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, lr);
-        grad.addColorStop(0, this.withAlpha(c.color, Math.max(0.01, opacity * 0.7)));
-        grad.addColorStop(0.4, this.withAlpha(c.color, Math.max(0.01, opacity * 0.35)));
+        grad.addColorStop(0, this.withAlpha(drawColor, Math.max(0.01, opacity * 0.7)));
+        grad.addColorStop(0.4, this.withAlpha(drawColor, Math.max(0.01, opacity * 0.35)));
         grad.addColorStop(1, "rgba(0,0,0,0)");
 
         ctx.fillStyle = grad;
@@ -470,14 +480,14 @@ class FogCanvas {
       if (isPlaying) {
         const pulse = 0.3 + 0.15 * Math.sin(time * 0.003);
         ctx.filter = "none";
-        ctx.globalCompositeOperation = "screen";
-        ctx.strokeStyle = this.withAlpha(c.color, pulse);
-        ctx.lineWidth = 2;
+        ctx.globalCompositeOperation = isSky ? "source-over" : "screen";
+        ctx.strokeStyle = this.withAlpha(c.color, isSky ? pulse * 0.8 : pulse);
+        ctx.lineWidth = isSky ? 3 : 2;
         ctx.beginPath();
         ctx.arc(cx, cy, c.radius * 0.4, 0, Math.PI * 2);
         ctx.stroke();
         ctx.filter = `blur(${c.blur || 70}px)`;
-        ctx.globalCompositeOperation = "screen";
+        ctx.globalCompositeOperation = isSky ? "source-over" : "screen";
       }
     }
 
@@ -554,6 +564,7 @@ class FogCanvas {
   drawRaindrops(now) {
     const ctx = this.ctx;
     const elapsed = (time) => now - time;
+    const isSky = activeTheme.id === "sky";
 
     this.raindrops = this.raindrops.filter((r) => {
       const age = elapsed(r.startTime);
@@ -573,8 +584,8 @@ class FogCanvas {
         const dropY = -40 + (ty + 40) * ease;
         const dropOpacity = 1 - t * 0.3;
 
-        ctx.globalCompositeOperation = "screen";
-        ctx.fillStyle = `rgba(${rInt},${gInt},${bInt},${dropOpacity})`;
+        ctx.globalCompositeOperation = isSky ? "source-over" : "screen";
+        ctx.fillStyle = `rgba(${rInt},${gInt},${bInt},${isSky ? dropOpacity * 0.7 : dropOpacity})`;
         ctx.beginPath();
         ctx.arc(tx, dropY, r.dropRadius * (1 - t * 0.3), 0, Math.PI * 2);
         ctx.fill();
@@ -586,17 +597,17 @@ class FogCanvas {
         const rippleAge = age - r.dropDuration;
         const t = rippleAge / r.rippleDuration;
 
-        ctx.globalCompositeOperation = "screen";
+        ctx.globalCompositeOperation = isSky ? "source-over" : "screen";
         for (let ring = 0; ring < 3; ring++) {
           const ringDelay = ring * 0.15;
           const ringT = Math.max(0, Math.min(1, (t - ringDelay) / (1 - ringDelay)));
           if (ringT <= 0 || ringT >= 1) continue;
 
           const radius = 8 + ringT * 80;
-          const opacity = (1 - ringT) * 0.4;
+          const opacity = (1 - ringT) * (isSky ? 0.5 : 0.4);
 
           ctx.strokeStyle = `rgba(${rInt},${gInt},${bInt},${opacity})`;
-          ctx.lineWidth = 2 - ringT * 1.5;
+          ctx.lineWidth = isSky ? 2.5 : (2 - ringT * 1.5);
           ctx.beginPath();
           ctx.arc(tx, ty, radius, 0, Math.PI * 2);
           ctx.stroke();
@@ -808,6 +819,7 @@ function renderWelcome() {
     text: activeTheme.id === "fog" ? "sky" : "fog",
     onClick: () => {
       activeTheme = activeTheme.id === "fog" ? THEMES.sky : THEMES.fog;
+      document.body.classList.toggle("sky-mode", activeTheme.id === "sky");
       refreshFog();
       render();
     },
@@ -1060,19 +1072,23 @@ function renderDeepen() {
 function renderReframe() {
   const options = buildReframes(state.feeling, state.freeText, state.deepenAnswer);
   const list = el("div", { className: "reframe-list" });
+  const optionBtns = [];
 
   options.forEach((opt) => {
-    list.append(
-      el("button", {
-        className: `reframe-option${opt.id === "stay" ? " stay" : ""}${state.selectedReframe === opt.id ? " selected" : ""}`,
-        text: opt.label,
-        onClick: () => {
-          state.selectedReframe = opt.id;
-          state.reframeText = opt.text;
-          render();
-        },
-      })
-    );
+    const btn = el("button", {
+      className: `reframe-option${opt.id === "stay" ? " stay" : ""}${state.selectedReframe === opt.id ? " selected" : ""}`,
+      text: opt.label,
+      onClick: () => {
+        state.selectedReframe = state.selectedReframe === opt.id ? null : opt.id;
+        state.reframeText = state.selectedReframe ? opt.text : "";
+        optionBtns.forEach((b) => b.classList.remove("selected"));
+        if (state.selectedReframe) btn.classList.add("selected");
+        const contBtn = document.querySelector(".reframe-actions .btn-primary");
+        if (contBtn) contBtn.textContent = state.selectedReframe ? "Continue" : "Skip to the fog";
+      },
+    });
+    optionBtns.push(btn);
+    list.append(btn);
   });
 
   return el("div", { className: "screen" }, [
@@ -1080,7 +1096,7 @@ function renderReframe() {
     el("h1", { text: "A second angle?" }),
     el("p", { className: "lead", text: "Some people find another lens. No pressure." }),
     list,
-    el("div", { className: "actions" }, [
+    el("div", { className: "actions reframe-actions" }, [
       el("button", {
         className: "btn btn-primary",
         text: state.selectedReframe ? "Continue" : "Skip to the fog",
@@ -1305,6 +1321,7 @@ function render() {
 }
 
 // Boot
+document.body.classList.toggle("sky-mode", activeTheme.id === "sky");
 refreshFog();
 fogCanvas.start();
 render();

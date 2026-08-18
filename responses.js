@@ -47,16 +47,17 @@ const THEMES = {
     bg: "#87CEEB",
     bgGradient: ["#5BA3D9", "#87CEEB", "#B8D8F0"],
     baseLayers: [
-      { hex: "#ffffff", opacity: 0.6 },
-      { hex: "#e8f0f8", opacity: 0.4 },
-      { hex: "#d0e4f0", opacity: 0.35 },
+      { hex: "#ffffff", opacity: 0.25 },
+      { hex: "#e8f0f8", opacity: 0.18 },
+      { hex: "#d0e4f0", opacity: 0.15 },
     ],
-    cloudBlur: 40,
-    cloudMinRadius: 100,
-    cloudMaxRadius: 220,
-    driftSpeed: 0.0004,
+    cloudBlur: 55,
+    cloudMinRadius: 90,
+    cloudMaxRadius: 180,
+    driftSpeed: 0.0002,
+    cloudLobes: [5, 7, 6],
     useOverlay: true,
-    overlaySeed: Math.random(), // determines if tree/leaves appear today
+    overlaySeed: Math.random(),
   },
 };
 
