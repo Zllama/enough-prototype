@@ -1,9 +1,9 @@
 /** Rule-based witnessing for the prototype (AI-ready later). */
 
-const WORD_CHIPS = [
-  "heavy", "quiet", "sharp", "numb", "warm", "foggy",
-  "anxious", "tired", "grateful", "lonely", "overwhelmed", "calm",
-];
+const WORD_CHIPS = {
+  "comfortable": ["warm", "calm", "grateful", "quiet", "foggy", "still"],
+  "uncomfortable": ["heavy", "sharp", "numb", "anxious", "tired", "lonely", "overwhelmed"],
+};
 
 const COLORS = [
   { id: "mist", hex: "#8b9cb3", label: "mist" },
@@ -28,6 +28,7 @@ const THEMES = {
     id: "fog",
     label: "Fog",
     description: "Drifting clouds of colour",
+    bg: "#1a1f2e",
     baseLayers: [
       { hex: "#8b9cb3", opacity: 0.12 },
       { hex: "#5c6b7a", opacity: 0.08 },
@@ -37,6 +38,25 @@ const THEMES = {
     cloudMinRadius: 80,
     cloudMaxRadius: 200,
     driftSpeed: 0.0003,
+    useOverlay: false,
+  },
+  sky: {
+    id: "sky",
+    label: "Sky",
+    description: "Blue sky with puffy clouds",
+    bg: "#87CEEB",
+    bgGradient: ["#5BA3D9", "#87CEEB", "#B8D8F0"],
+    baseLayers: [
+      { hex: "#ffffff", opacity: 0.6 },
+      { hex: "#e8f0f8", opacity: 0.4 },
+      { hex: "#d0e4f0", opacity: 0.35 },
+    ],
+    cloudBlur: 40,
+    cloudMinRadius: 100,
+    cloudMaxRadius: 220,
+    driftSpeed: 0.0004,
+    useOverlay: true,
+    overlaySeed: Math.random(), // determines if tree/leaves appear today
   },
 };
 

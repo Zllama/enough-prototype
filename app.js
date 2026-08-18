@@ -11,6 +11,7 @@ const state = {
   selectedReframe: null,
   reframeText: "",
   driftSpeed: 1,
+  pendingRaindrop: null, // { x, y, color }
 };
 
 /* ── Persistence ── */
@@ -197,12 +198,20 @@ class FogCanvas {
     this.clouds = [];
     this.animId = null;
     this.lastDrawTime = 0;
-    this.raindrops = []; // active raindrop animations
+    this.raindrops = [];
+    // Drag state
+    this.dragIdx = -1;
+    this.dragOffsetX = 0;
+    this.dragOffsetY = 0;
+    this.dragStartY = 0;
+    this.dragMoved = false;
+    this.squish = 0; // 0-1, current squish amount, decays over time
     this.resize();
     window.addEventListener("resize", () => {
       this.resize();
       this.recalculatePositions();
     });
+    this._initDrag();
   }
 
   resize() {
@@ -223,6 +232,94 @@ class FogCanvas {
         c.y = c.pctY * h;
       }
     }
+  }
+
+  _initDrag() {
+    const c = this.canvas;
+
+    const getPos = (e) => {
+      const rect = c.getBoundingClientRect();
+      if (e.touches && e.touches[0]) {
+        return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+      }
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+
+    const onStart = (e) => {
+      const pos = getPos(e);
+      const idx = this.hitTest(pos.x, pos.y);
+      if (idx >= 0 && idx < this.clouds.length) {
+        this.dragIdx = idx;
+        this.dragOffsetX = this.clouds[idx].x - pos.x;
+        this.dragOffsetY = this.clouds[idx].y - pos.y;
+        this.dragStartY = pos.y;
+        this.dragMoved = false;
+        this.squish = 0.6;
+        e.preventDefault();
+      }
+    };
+
+    const onMove = (e) => {
+      if (this.dragIdx < 0) return;
+      const pos = getPos(e);
+      const cloud = this.clouds[this.dragIdx];
+      this.dragMoved = true;
+      cloud.x = pos.x + this.dragOffsetX;
+      cloud.y = pos.y + this.dragOffsetY;
+      cloud.pctX = cloud.x / window.innerWidth;
+      cloud.pctY = cloud.y / window.innerHeight;
+
+      // Squish intensity based on drag speed
+      const dy = Math.abs(pos.y - this.dragStartY);
+      this.squish = Math.min(1, 0.3 + dy / 200);
+      this.dragStartY = pos.y;
+
+      // Detune sound based on vertical position
+      if (isCloudSoundPlaying(cloud.color)) {
+        const node = activeNodes.find((n) => n.hex === cloud.color);
+        if (node) {
+          const baseFreq = getSoundForColor(cloud.color).freq;
+          const yNorm = cloud.y / window.innerHeight;
+          const detune = (yNorm - 0.5) * 200;
+          node.osc.detune.setValueAtTime(detune, audioCtx.currentTime);
+        }
+      }
+
+      e.preventDefault();
+    };
+
+    const onEnd = () => {
+      if (this.dragIdx >= 0) {
+        this._savePositions();
+        this.dragIdx = -1;
+      }
+    };
+
+    c.addEventListener("touchstart", onStart, { passive: false });
+    c.addEventListener("touchmove", onMove, { passive: false });
+    c.addEventListener("touchend", onEnd);
+    c.addEventListener("mousedown", onStart);
+    c.addEventListener("mousemove", onMove);
+    c.addEventListener("mouseup", onEnd);
+    c.addEventListener("mouseleave", onEnd);
+
+    // Fade buttons on any canvas touch
+    c.addEventListener("touchstart", () => {
+      document.getElementById("app").classList.add("fog-touching");
+    }, { passive: true });
+    c.addEventListener("touchend", () => {
+      document.getElementById("app").classList.remove("fog-touching");
+    }, { passive: true });
+  }
+
+  _savePositions() {
+    const board = loadBoard();
+    if (!board.length) return;
+    for (let i = 0; i < this.clouds.length && i < board.length; i++) {
+      board[i].x = Math.round(this.clouds[i].pctX * 100);
+      board[i].y = Math.round(this.clouds[i].pctY * 100);
+    }
+    saveBoard(board);
   }
 
   setFragments(fragments) {
@@ -248,11 +345,11 @@ class FogCanvas {
       baseOpacity: 0.18 + intensity * 0.32,
       radius: theme.cloudMinRadius + intensity * (theme.cloudMaxRadius - theme.cloudMinRadius),
       // Irregular shape: multiple offset lobes
-      lobes: 3 + Math.floor(Math.random() * 3),
-      lobeOffsets: Array.from({ length: 5 }, () => ({
-        dx: (Math.random() - 0.5) * 0.5,
-        dy: (Math.random() - 0.5) * 0.5,
-        scale: 0.5 + Math.random() * 0.5,
+      lobes: 4 + Math.floor(Math.random() * 4),
+      lobeOffsets: Array.from({ length: 7 }, () => ({
+        dx: (Math.random() - 0.5) * 0.7,
+        dy: (Math.random() - 0.5) * 0.7,
+        scale: 0.35 + Math.random() * 0.65,
       })),
       driftSpeedX: (0.2 + Math.random() * 0.4) * spread * theme.driftSpeed,
       driftSpeedY: (0.15 + Math.random() * 0.3) * spread * theme.driftSpeed,
@@ -286,11 +383,11 @@ class FogCanvas {
         color: layer.hex,
         baseOpacity: layer.opacity,
         radius: theme.cloudMaxRadius * 0.9,
-        lobes: 4,
-        lobeOffsets: Array.from({ length: 5 }, () => ({
-          dx: (Math.random() - 0.5) * 0.4,
-          dy: (Math.random() - 0.5) * 0.4,
-          scale: 0.6 + Math.random() * 0.4,
+        lobes: 5 + Math.floor(Math.random() * 3),
+        lobeOffsets: Array.from({ length: 7 }, () => ({
+          dx: (Math.random() - 0.5) * 0.6,
+          dy: (Math.random() - 0.5) * 0.6,
+          scale: 0.4 + Math.random() * 0.6,
         })),
         driftSpeedX: 0.0001 + Math.random() * 0.00015,
         driftSpeedY: 0.00008 + Math.random() * 0.00012,
@@ -311,19 +408,29 @@ class FogCanvas {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const speedMult = state.driftSpeed;
+    const theme = activeTheme;
 
     this.lastDrawTime = time;
 
     // Background
     ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "#1a1f2e";
+    if (theme.bgGradient) {
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      theme.bgGradient.forEach((hex, i) => grad.addColorStop(i / (theme.bgGradient.length - 1), hex));
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = theme.bg;
+    }
     ctx.fillRect(0, 0, w, h);
 
-    // Apply blur for fog softness
+    // Apply blur for cloud softness
     ctx.filter = `blur(${this.clouds[0]?.blur || 70}px)`;
-    ctx.globalCompositeOperation = "screen";
+    ctx.globalCompositeOperation = theme.id === "sky" ? "source-over" : "screen";
 
-    for (const c of this.clouds) {
+    // Decay squish
+    if (this.squish > 0.01) this.squish *= 0.95;
+
+    for (const [ci, c] of this.clouds.entries()) {
       const cx = c.x + Math.sin(time * c.driftSpeedX * speedMult + c.driftPhaseX) * c.driftAmpX;
       const cy = c.y + Math.cos(time * c.driftSpeedY * speedMult + c.driftPhaseY) * c.driftAmpY;
       const isPlaying = isCloudSoundPlaying(c.color);
@@ -333,9 +440,20 @@ class FogCanvas {
       // Draw irregular shape: multiple overlapping radial gradients at offset positions
       for (let l = 0; l < c.lobes; l++) {
         const lobe = c.lobeOffsets[l];
-        const lx = cx + lobe.dx * c.radius;
-        const ly = cy + lobe.dy * c.radius;
-        const lr = c.radius * lobe.scale;
+        let lx = cx + lobe.dx * c.radius;
+        let ly = cy + lobe.dy * c.radius;
+        let lr = c.radius * lobe.scale;
+
+        // Squish deformation when dragging
+        if (ci === this.dragIdx && this.squish > 0.01) {
+          const s = this.squish;
+          const squashY = 1 - s * 0.3;
+          const stretchX = 1 + s * 0.15;
+          const randSkew = Math.sin(l * 1.7) * s * 0.12;
+          lx = cx + (lx - cx) * stretchX + randSkew * c.radius;
+          ly = cy + (ly - cy) * squashY;
+          lr *= 1 + s * 0.1;
+        }
 
         const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, lr);
         grad.addColorStop(0, this.withAlpha(c.color, Math.max(0.01, opacity * 0.7)));
@@ -368,6 +486,55 @@ class FogCanvas {
 
     // Draw raindrop animations on top
     this.drawRaindrops(time);
+
+    // Sky theme: occasional tree/leaves overlay
+    if (activeTheme.useOverlay && activeTheme.overlaySeed < 0.3) {
+      this.drawTreeOverlay(w, h);
+    }
+  }
+
+  drawTreeOverlay(w, h) {
+    const ctx = this.ctx;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "rgba(60, 80, 50, 0.55)";
+
+    // Branch from top-right
+    ctx.beginPath();
+    ctx.moveTo(w * 0.85, 0);
+    ctx.quadraticCurveTo(w * 0.7, h * 0.15, w * 0.55, h * 0.12);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "rgba(80, 60, 40, 0.6)";
+    ctx.stroke();
+
+    // Leaves cluster top-right
+    for (let i = 0; i < 8; i++) {
+      const lx = w * (0.55 + Math.random() * 0.35);
+      const ly = h * (Math.random() * 0.18);
+      const lr = 12 + Math.random() * 18;
+      ctx.fillStyle = `rgba(${50 + Math.random() * 40}, ${70 + Math.random() * 40}, ${40 + Math.random() * 30}, ${0.35 + Math.random() * 0.25})`;
+      ctx.beginPath();
+      ctx.ellipse(lx, ly, lr, lr * 0.6, Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Branch from bottom-left
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.8);
+    ctx.quadraticCurveTo(w * 0.15, h * 0.65, w * 0.25, h * 0.55);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(80, 60, 40, 0.5)";
+    ctx.stroke();
+
+    // Leaves cluster bottom-left
+    for (let i = 0; i < 6; i++) {
+      const lx = w * (Math.random() * 0.28);
+      const ly = h * (0.5 + Math.random() * 0.35);
+      const lr = 10 + Math.random() * 16;
+      ctx.fillStyle = `rgba(${50 + Math.random() * 40}, ${70 + Math.random() * 40}, ${40 + Math.random() * 30}, ${0.3 + Math.random() * 0.25})`;
+      ctx.beginPath();
+      ctx.ellipse(lx, ly, lr, lr * 0.55, Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   addRaindrop(targetXPct, targetYPct, color) {
@@ -546,8 +713,8 @@ function addFragment() {
   saveBoard(board);
   refreshFog();
 
-  // Raindrop ripple animation at the fragment's position
-  fogCanvas.addRaindrop(x, y, state.color.hex);
+  // Store raindrop for when home screen renders
+  state.pendingRaindrop = { x, y, color: state.color.hex };
 }
 
 /* ── Screens ── */
@@ -557,6 +724,14 @@ let homeTouchHandler = null;
 
 function renderWelcome() {
   const board = loadBoard();
+
+  // Fire pending raindrop animation now that home screen is visible
+  if (state.pendingRaindrop) {
+    const r = state.pendingRaindrop;
+    fogCanvas.addRaindrop(r.x, r.y, r.color);
+    state.pendingRaindrop = null;
+  }
+
   const driftSlider = el("input", {
     type: "range",
     min: "0",
@@ -575,6 +750,7 @@ function renderWelcome() {
     canvas.removeEventListener("touchend", homeTouchHandler);
   }
   homeClickHandler = (e) => {
+    if (fogCanvas.dragMoved) { fogCanvas.dragMoved = false; return; }
     const { x, y } = canvasCoords(e, canvas);
     const hitIdx = fogCanvas.hitTest(x, y);
     if (hitIdx >= 0) {
@@ -627,6 +803,16 @@ function renderWelcome() {
   });
   if (!isCloudSoundPlaying()) silenceBtn.style.display = "none";
 
+  const themeBtn = el("button", {
+    className: "btn btn-ghost btn-theme",
+    text: activeTheme.id === "fog" ? "sky" : "fog",
+    onClick: () => {
+      activeTheme = activeTheme.id === "fog" ? THEMES.sky : THEMES.fog;
+      refreshFog();
+      render();
+    },
+  });
+
   return el("div", { className: "screen screen-home" }, [
     el("div", { className: "home-top" }, [
       el("span", { className: "logo", text: "enough" }),
@@ -640,6 +826,7 @@ function renderWelcome() {
         driftSlider,
       ]),
       silenceBtn,
+      themeBtn,
     ]),
     el("div", { className: "actions" }, actions),
   ]);
@@ -655,18 +842,36 @@ function renderArrive() {
 
   const chipsWrap = el("div", { className: "chips" });
   const chipBtns = [];
-  WORD_CHIPS.forEach((word) => {
-    const btn = el("button", {
-      className: `chip${state.feeling === word ? " selected" : ""}`,
-      text: word,
-      onClick: () => {
-        state.feeling = state.feeling === word ? "" : word;
-        chipBtns.forEach((b) => b.classList.toggle("selected", b.textContent === state.feeling));
-      },
+
+  Object.entries(WORD_CHIPS).forEach(([group, words]) => {
+    const groupWrap = el("div", { className: "chip-group" });
+    const toggle = el("button", { className: "chip-group-toggle", text: group });
+    const list = el("div", { className: "chip-group-list" });
+
+    words.forEach((word) => {
+      const btn = el("button", {
+        className: `chip${state.feeling === word ? " selected" : ""}`,
+        text: word,
+        onClick: () => {
+          state.feeling = state.feeling === word ? "" : word;
+          chipBtns.forEach((b) => b.classList.toggle("selected", b.textContent === state.feeling));
+        },
+      });
+      chipBtns.push(btn);
+      list.append(btn);
     });
-    chipBtns.push(btn);
-    chipsWrap.append(btn);
+
+    list.style.display = "none";
+    toggle.addEventListener("click", () => {
+      const open = list.style.display !== "none";
+      list.style.display = open ? "none" : "flex";
+      toggle.classList.toggle("open", !open);
+    });
+
+    groupWrap.append(toggle, list);
+    chipsWrap.append(groupWrap);
   });
+
   screen.append(chipsWrap);
 
   const textarea = el("textarea", {
@@ -929,9 +1134,10 @@ function renderFragment() {
 }
 
 function renderRelease() {
+  const iconColor = state.color.hex;
   return el("div", { className: "screen" }, [
     topNav(),
-    el("div", { className: "release-icon", text: "○" }),
+    el("div", { className: "release-icon", text: "○", style: `color: ${iconColor}` }),
     el("h1", { text: "That's sufficient." }),
     el("p", { className: "lead", text: "You can go live your day. This will be here. Nothing expires." }),
     el("div", { className: "actions" }, [
@@ -1039,6 +1245,7 @@ function renderFogExplore() {
   // Set up canvas click detection
   const canvas = fogCanvas.canvas;
   exploreClickHandler = (e) => {
+    if (fogCanvas.dragMoved) { fogCanvas.dragMoved = false; return; }
     const { x, y } = canvasCoords(e, canvas);
     const hitIdx = fogCanvas.hitTest(x, y);
     if (hitIdx >= 0 && hitIdx < fogCanvas.clouds.length) {
