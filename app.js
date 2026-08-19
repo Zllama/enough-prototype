@@ -345,7 +345,7 @@ class FogCanvas {
       y: (frag.y / 100) * h,
       color: frag.color || "#8b9cb3",
       baseOpacity: theme.id === "sky"
-        ? 0.08 + intensity * 0.2
+        ? 0.15 + intensity * 0.3
         : 0.18 + intensity * 0.32,
       radius: theme.cloudMinRadius + intensity * (theme.cloudMaxRadius - theme.cloudMinRadius),
       lobes: numLobes,
@@ -441,11 +441,12 @@ class FogCanvas {
       const cx = c.x + Math.sin(time * c.driftSpeedX * speedMult + c.driftPhaseX) * c.driftAmpX;
       const cy = c.y + Math.cos(time * c.driftSpeedY * speedMult + c.driftPhaseY) * c.driftAmpY;
       const isPlaying = isCloudSoundPlaying(c.color);
-      const playBoost = isPlaying ? (isSky ? 0.12 : 0.15) : 0;
+      const playBoost = isPlaying ? (isSky ? 0.2 : 0.15) : 0;
       const opacity = c.baseOpacity + Math.sin(time * c.opacityPulseSpeed * speedMult + c.opacityPulsePhase) * c.opacityPulseAmp + playBoost;
 
-      // In sky mode, playing clouds tint toward their actual color
-      const drawColor = (isSky && isPlaying) ? c.color : (isSky ? "#ffffff" : c.color);
+      // Sky mode: white base, playing clouds become brighter white
+      // Fog mode: use the cloud's assigned color
+      const drawColor = isSky ? "#ffffff" : c.color;
 
       // Draw irregular shape: multiple overlapping radial gradients at offset positions
       for (let l = 0; l < c.lobes; l++) {
@@ -664,7 +665,7 @@ class FogCanvas {
       const cy = c.y + Math.cos(time * c.driftSpeedY * speedMult + c.driftPhaseY) * c.driftAmpY;
       const dx = px - cx;
       const dy = py - cy;
-      if (dx * dx + dy * dy < c.radius * c.radius * 0.6) {
+      if (dx * dx + dy * dy < c.radius * c.radius * 0.25) {
         return i;
       }
     }
@@ -760,7 +761,9 @@ function renderWelcome() {
     canvas.removeEventListener("click", homeClickHandler);
     canvas.removeEventListener("touchend", homeTouchHandler);
   }
+  let touchHandled = false;
   homeClickHandler = (e) => {
+    if (touchHandled) { touchHandled = false; return; }
     if (fogCanvas.dragMoved) { fogCanvas.dragMoved = false; return; }
     const { x, y } = canvasCoords(e, canvas);
     const hitIdx = fogCanvas.hitTest(x, y);
@@ -773,6 +776,7 @@ function renderWelcome() {
   };
   homeTouchHandler = (e) => {
     e.preventDefault();
+    touchHandled = true;
     homeClickHandler(e);
   };
   canvas.addEventListener("click", homeClickHandler);
@@ -1153,7 +1157,7 @@ function renderRelease() {
   const iconColor = state.color.hex;
   return el("div", { className: "screen" }, [
     topNav(),
-    el("div", { className: "release-icon", text: "○", style: `color: ${iconColor}` }),
+    el("div", { className: "release-icon", style: `--drop-color: ${iconColor}` }),
     el("h1", { text: "That's sufficient." }),
     el("p", { className: "lead", text: "You can go live your day. This will be here. Nothing expires." }),
     el("div", { className: "actions" }, [

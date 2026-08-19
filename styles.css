@@ -509,10 +509,52 @@ h1 {
 }
 
 .release-icon {
-  font-size: 2rem;
+  position: relative;
+  width: 48px;
+  height: 48px;
+  margin: 1.5rem auto;
   text-align: center;
-  margin: 1rem 0;
-  opacity: 0.5;
+}
+
+.release-icon::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  background: var(--drop-color, #a8b8d8);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  transform: translateX(-50%);
+  animation: raindrop-fall 2s ease-in forwards;
+}
+
+.release-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 4px;
+  height: 4px;
+  background: var(--drop-color, #a8b8d8);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  animation: raindrop-ripple 2s ease-out 0.8s forwards;
+  opacity: 0;
+}
+
+@keyframes raindrop-fall {
+  0% { top: -30px; opacity: 0; }
+  20% { opacity: 0.9; }
+  60% { top: 24px; opacity: 0.9; }
+  80% { top: 24px; opacity: 0.6; }
+  100% { top: 28px; opacity: 0; }
+}
+
+@keyframes raindrop-ripple {
+  0% { width: 4px; height: 4px; opacity: 0; }
+  10% { opacity: 0.5; }
+  100% { width: 48px; height: 48px; opacity: 0; margin-left: -22px; margin-top: -22px; }
 }
 
 /* ── Fog Explore Screen ── */
@@ -642,6 +684,11 @@ body.sky-mode .btn-ghost:hover {
 
 body.sky-mode .screen {
   background: rgba(135, 206, 235, 0.88);
+}
+
+body.sky-mode .screen-home,
+body.sky-mode .screen-explore {
+  background: transparent;
 }
 
 body.sky-mode .control-label {
