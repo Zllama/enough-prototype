@@ -58,7 +58,8 @@ function canvasCoords(e, canvas) {
 
 let audioCtx = null;
 let masterGain = null;
-let activeNodes = []; // { osc, gain, lfo, lfoGain, hex }
+let activeNodes = []; // { osc, gain, lfo, lfoGain, cloudId, hex }
+let _nextCloudId = 0;
 
 function ensureAudio() {
   if (!audioCtx) {
@@ -107,11 +108,11 @@ function getSoundForColor(hex) {
   return best;
 }
 
-function playCloudSound(hex) {
+function playCloudSound(cloudId, hex) {
   const ctx = ensureAudio();
 
-  // Don't duplicate — if this hex is already playing, skip
-  if (activeNodes.some((n) => n.hex === hex)) return;
+  // Don't duplicate — if this cloud is already playing, skip
+  if (activeNodes.some((n) => n.cloudId === cloudId)) return;
 
   const s = getSoundForColor(hex);
   const now = ctx.currentTime;
@@ -142,11 +143,11 @@ function playCloudSound(hex) {
   osc.start(now);
   lfo.start(now);
 
-  activeNodes.push({ osc, gain, lfo, lfoGain, hex });
+  activeNodes.push({ osc, gain, lfo, lfoGain, cloudId, hex });
 }
 
-function stopCloudNode(hex) {
-  const idx = activeNodes.findIndex((n) => n.hex === hex);
+function stopCloudNode(cloudId) {
+  const idx = activeNodes.findIndex((n) => n.cloudId === cloudId);
   if (idx === -1) return;
   const node = activeNodes[idx];
   const ctx = ensureAudio();
@@ -176,16 +177,16 @@ function stopAllSounds() {
   activeNodes = [];
 }
 
-function toggleCloudSound(hex) {
-  if (activeNodes.some((n) => n.hex === hex)) {
-    stopCloudNode(hex);
+function toggleCloudSound(cloudId, hex) {
+  if (activeNodes.some((n) => n.cloudId === cloudId)) {
+    stopCloudNode(cloudId);
   } else {
-    playCloudSound(hex);
+    playCloudSound(cloudId, hex);
   }
 }
 
-function isCloudSoundPlaying(hex) {
-  if (hex) return activeNodes.some((n) => n.hex === hex);
+function isCloudSoundPlaying(cloudId) {
+  if (cloudId != null) return activeNodes.some((n) => n.cloudId === cloudId);
   return activeNodes.length > 0;
 }
 
@@ -339,6 +340,7 @@ class FogCanvas {
     const numLobes = lobeOptions[Math.floor(Math.random() * lobeOptions.length)];
 
     return {
+      _id: _nextCloudId++,
       pctX: frag.x / 100,
       pctY: frag.y / 100,
       x: (frag.x / 100) * w,
@@ -381,6 +383,7 @@ class FogCanvas {
       const numLobes = lobeOptions[Math.floor(Math.random() * lobeOptions.length)];
 
       return {
+        _id: _nextCloudId++,
         pctX: pos.x,
         pctY: pos.y,
         x: pos.x * w,
@@ -440,13 +443,12 @@ class FogCanvas {
     for (const [ci, c] of this.clouds.entries()) {
       const cx = c.x + Math.sin(time * c.driftSpeedX * speedMult + c.driftPhaseX) * c.driftAmpX;
       const cy = c.y + Math.cos(time * c.driftSpeedY * speedMult + c.driftPhaseY) * c.driftAmpY;
-      const isPlaying = isCloudSoundPlaying(c.color);
+      const isPlaying = isCloudSoundPlaying(c._id);
       const playBoost = isPlaying ? (isSky ? 0.2 : 0.15) : 0;
       const opacity = c.baseOpacity + Math.sin(time * c.opacityPulseSpeed * speedMult + c.opacityPulsePhase) * c.opacityPulseAmp + playBoost;
 
-      // Sky mode: white base, playing clouds become brighter white
-      // Fog mode: use the cloud's assigned color
-      const drawColor = isSky ? "#ffffff" : c.color;
+      // Sky mode: tinted toward white (hint of color), fog mode: full color
+      const drawColor = isSky ? this.tintTowardWhite(c.color, 0.75) : c.color;
 
       // Draw irregular shape: multiple overlapping radial gradients at offset positions
       for (let l = 0; l < c.lobes; l++) {
@@ -640,6 +642,16 @@ class FogCanvas {
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
+  tintTowardWhite(hex, amount) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const tr = Math.round(r + (255 - r) * amount);
+    const tg = Math.round(g + (255 - g) * amount);
+    const tb = Math.round(b + (255 - b) * amount);
+    return `#${tr.toString(16).padStart(2,"0")}${tg.toString(16).padStart(2,"0")}${tb.toString(16).padStart(2,"0")}`;
+  }
+
   start() {
     if (this.animId) return;
     const loop = (time) => {
@@ -770,7 +782,7 @@ function renderWelcome() {
     if (hitIdx >= 0) {
       const clouds = fogCanvas.clouds;
       if (hitIdx < clouds.length) {
-        toggleCloudSound(clouds[hitIdx].color);
+        toggleCloudSound(clouds[hitIdx]._id, clouds[hitIdx].color);
       }
     }
   };
@@ -1269,7 +1281,7 @@ function renderFogExplore() {
     const { x, y } = canvasCoords(e, canvas);
     const hitIdx = fogCanvas.hitTest(x, y);
     if (hitIdx >= 0 && hitIdx < fogCanvas.clouds.length) {
-      playCloudSound(fogCanvas.clouds[hitIdx].color);
+      playCloudSound(fogCanvas.clouds[hitIdx]._id, fogCanvas.clouds[hitIdx].color);
       if (hitIdx < board.length) {
         showDetail(board[hitIdx]);
       }
