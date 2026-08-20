@@ -12,6 +12,8 @@ const state = {
   reframeText: "",
   driftSpeed: 1,
   pendingRaindrop: null, // { x, y, color }
+  resolveStep: 0,
+  resolvingFragment: null,
 };
 
 /* ── Persistence ── */
@@ -1211,6 +1213,97 @@ function renderRelease() {
   ]);
 }
 
+function renderResolve() {
+  const frag = state.resolvingFragment;
+  if (!frag) return go("fogExplore");
+
+  const steps = [
+    {
+      key: "acknowledge",
+      title: "Acknowledge",
+      prompt: `You named: "${frag.word}".`,
+      body: "Say to yourself: \"This is here. I see it.\"",
+      action: "I see it",
+    },
+    {
+      key: "feel",
+      title: "Feel in the body",
+      prompt: "Where do you notice this?",
+      body: "Chest? Throat? Belly? Hands? Just notice the sensation. No need to name it — just feel.",
+      action: "I'm feeling it",
+    },
+    {
+      key: "breathe",
+      title: "Breathe with it",
+      prompt: "Stay with the sensation.",
+      body: "Inhale... exhale... Let it be exactly as it is. Nothing to fix, nothing to push away.",
+      action: "Breathing with it",
+    },
+    {
+      key: "release",
+      title: "Let go",
+      prompt: "When you're ready, imagine it softening.",
+      body: "Like fog lifting. Like a breath leaving. It served its purpose — it got your attention. Now it can go.",
+      action: "I release it",
+    },
+  ];
+
+  const stepIdx = state.resolveStep || 0;
+  const step = steps[stepIdx];
+  const isLast = stepIdx === steps.length - 1;
+
+  function nextStep() {
+    if (isLast) {
+      // Mark resolved and return
+      const board = loadBoard();
+      const updated = board.map((f) =>
+        f.date === frag.date ? { ...f, resolved: true } : f
+      );
+      saveBoard(updated);
+      refreshFog();
+      state.resolveStep = 0;
+      state.resolvingFragment = null;
+      go("fogExplore");
+    } else {
+      state.resolveStep = stepIdx + 1;
+      render();
+    }
+  }
+
+  return el("div", { className: "screen" }, [
+    topNav(true),
+    el("div", { className: "resolve-container" }, [
+      el("div", { className: "resolve-progress" }, [
+        ...steps.map((s, i) =>
+          el("div", {
+            className: `resolve-step-dot${i <= stepIdx ? " done" : ""}${i === stepIdx ? " current" : ""}`,
+          })
+        ),
+      ]),
+      el("h1", { text: step.title }),
+      el("p", { className: "resolve-prompt", text: step.prompt }),
+      el("p", { className: "resolve-body", text: step.body }),
+      el("div", { className: "actions" }, [
+        el("button", {
+          className: "btn btn-primary",
+          text: step.action,
+          onClick: nextStep,
+        }),
+        !isLast &&
+          el("button", {
+            className: "btn btn-ghost",
+            text: "Not now",
+            onClick: () => {
+              state.resolveStep = 0;
+              state.resolvingFragment = null;
+              go("fogExplore");
+            },
+          }),
+      ]),
+    ]),
+  ]);
+}
+
 function resetSession() {
   state.feeling = "";
   state.freeText = "";
@@ -1261,14 +1354,10 @@ function renderFogExplore() {
           className: "btn btn-ghost",
           text: "Resolve",
           onClick: () => {
-            const updated = loadBoard().map((f) =>
-              f.date === frag.date ? { ...f, resolved: true } : f
-            );
-            saveBoard(updated);
-            refreshFog();
+            state.resolvingFragment = frag;
             overlay.style.display = "none";
             selectedFragment = null;
-            go("fogExplore");
+            go("resolve");
           },
         }),
         el("button", {
@@ -1390,6 +1479,7 @@ function render() {
     fragment: renderFragment,
     release: renderRelease,
     fogExplore: renderFogExplore,
+    resolve: renderResolve,
   };
 
   app.append(screens[state.screen]());
