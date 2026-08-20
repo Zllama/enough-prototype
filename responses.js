@@ -1,8 +1,8 @@
 /** Rule-based witnessing for the prototype (AI-ready later). */
 
 const WORD_CHIPS = {
-  "comfortable": ["warm", "calm", "grateful", "quiet", "foggy", "still"],
-  "uncomfortable": ["heavy", "sharp", "numb", "anxious", "tired", "lonely", "overwhelmed"],
+  "comfortable": ["warm", "calm", "grateful", "quiet", "still"],
+  "uncomfortable": ["heavy", "sharp", "numb", "anxious", "tired", "lonely", "foggy", "overwhelmed"],
 };
 
 const COLORS = [
@@ -40,7 +40,7 @@ const THEMES = {
     driftSpeed: 0.0003,
     useOverlay: false,
   },
-  sky: {
+sky: {
     id: "sky",
     label: "Sky",
     description: "Blue sky with puffy clouds",
@@ -55,7 +55,7 @@ const THEMES = {
     cloudMinRadius: 90,
     cloudMaxRadius: 180,
     driftSpeed: 0.0002,
-    cloudLobes: [5, 7, 6],
+    cloudLobes: [8, 9, 10, 11, 12],
     useOverlay: true,
     overlaySeed: Math.random(),
   },

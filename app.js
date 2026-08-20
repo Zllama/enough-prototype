@@ -351,6 +351,7 @@ class FogCanvas {
         : 0.18 + intensity * 0.32,
       radius: theme.cloudMinRadius + intensity * (theme.cloudMaxRadius - theme.cloudMinRadius),
       lobes: numLobes,
+      resolved: frag.resolved || false,
       lobeOffsets: Array.from({ length: 7 }, () => ({
         dx: (Math.random() - 0.5) * 0.7,
         dy: (Math.random() - 0.5) * 0.7,
@@ -445,7 +446,8 @@ class FogCanvas {
       const cy = c.y + Math.cos(time * c.driftSpeedY * speedMult + c.driftPhaseY) * c.driftAmpY;
       const isPlaying = isCloudSoundPlaying(c._id);
       const playBoost = isPlaying ? (isSky ? 0.2 : 0.15) : 0;
-      const opacity = c.baseOpacity + Math.sin(time * c.opacityPulseSpeed * speedMult + c.opacityPulsePhase) * c.opacityPulseAmp + playBoost;
+      const resolvedMul = c.resolved ? 0.25 : 1;
+      const opacity = (c.baseOpacity + Math.sin(time * c.opacityPulseSpeed * speedMult + c.opacityPulsePhase) * c.opacityPulseAmp + playBoost) * resolvedMul;
 
       // Sky mode: tinted toward white (hint of color), fog mode: full color
       const drawColor = isSky ? this.tintTowardWhite(c.color, 0.75) : c.color;
@@ -468,6 +470,7 @@ class FogCanvas {
           lr *= 1 + s * 0.1;
         }
 
+        // Base cloud lobe
         const grad = ctx.createRadialGradient(lx, ly, 0, lx, ly, lr);
         grad.addColorStop(0, this.withAlpha(drawColor, Math.max(0.01, opacity * 0.7)));
         grad.addColorStop(0.4, this.withAlpha(drawColor, Math.max(0.01, opacity * 0.35)));
@@ -477,6 +480,21 @@ class FogCanvas {
         ctx.beginPath();
         ctx.arc(lx, ly, lr, 0, Math.PI * 2);
         ctx.fill();
+
+        // Cumulus highlight: inner bright spot on upper portion (sky mode only)
+        if (isSky && l < c.lobes * 0.6) {
+          const hlx = lx - lr * 0.15;
+          const hly = ly - lr * 0.25;
+          const hlr = lr * 0.35;
+          const hgrad = ctx.createRadialGradient(hlx, hly, 0, hlx, hly, hlr);
+          hgrad.addColorStop(0, this.withAlpha("#ffffff", opacity * 0.5));
+          hgrad.addColorStop(0.5, this.withAlpha("#ffffff", opacity * 0.15));
+          hgrad.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = hgrad;
+          ctx.beginPath();
+          ctx.arc(hlx, hly, hlr, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
 
       // Glow ring for playing clouds
@@ -1241,6 +1259,51 @@ function renderFogExplore() {
       el("div", { className: "detail-actions" }, [
         el("button", {
           className: "btn btn-ghost",
+          text: "Resolve",
+          onClick: () => {
+            const updated = loadBoard().map((f) =>
+              f.date === frag.date ? { ...f, resolved: true } : f
+            );
+            saveBoard(updated);
+            refreshFog();
+            overlay.style.display = "none";
+            selectedFragment = null;
+            go("fogExplore");
+          },
+        }),
+        el("button", {
+          className: "btn btn-ghost",
+          text: "Merge",
+          onClick: () => {
+            const board = loadBoard();
+            const others = board.filter((f) => f.date !== frag.date);
+            if (!others.length) return;
+            let nearest = others[0];
+            let minDist = Infinity;
+            for (const o of others) {
+              const dx = frag.x - o.x;
+              const dy = frag.y - o.y;
+              const d = dx * dx + dy * dy;
+              if (d < minDist) { minDist = d; nearest = o; }
+            }
+            const merged = {
+              x: (frag.x + nearest.x) / 2,
+              y: (frag.y + nearest.y) / 2,
+              color: frag.color,
+              intensity: (frag.intensity + nearest.intensity) / 2,
+              word: `${frag.word} + ${nearest.word}`,
+              date: new Date().toISOString(),
+            };
+            const updated = [...board.filter((f) => f.date !== frag.date && f.date !== nearest.date), merged];
+            saveBoard(updated);
+            refreshFog();
+            overlay.style.display = "none";
+            selectedFragment = null;
+            go("fogExplore");
+          },
+        }),
+        el("button", {
+          className: "btn btn-ghost",
           text: "Remove",
           onClick: () => {
             const updated = loadBoard().filter((f) => f.date !== frag.date);
@@ -1248,7 +1311,6 @@ function renderFogExplore() {
             refreshFog();
             overlay.style.display = "none";
             selectedFragment = null;
-            // Re-render the explore screen
             go("fogExplore");
           },
         }),
@@ -1274,17 +1336,14 @@ function renderFogExplore() {
     }
   });
 
-  // Set up canvas click detection
+  // Set up canvas click detection — NO sound, just show detail
   const canvas = fogCanvas.canvas;
   exploreClickHandler = (e) => {
     if (fogCanvas.dragMoved) { fogCanvas.dragMoved = false; return; }
     const { x, y } = canvasCoords(e, canvas);
     const hitIdx = fogCanvas.hitTest(x, y);
-    if (hitIdx >= 0 && hitIdx < fogCanvas.clouds.length) {
-      playCloudSound(fogCanvas.clouds[hitIdx]._id, fogCanvas.clouds[hitIdx].color);
-      if (hitIdx < board.length) {
-        showDetail(board[hitIdx]);
-      }
+    if (hitIdx >= 0 && hitIdx < board.length) {
+      showDetail(board[hitIdx]);
     }
   };
   exploreTouchHandler = (e) => {
