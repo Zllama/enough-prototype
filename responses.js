@@ -76,9 +76,9 @@ let activeTheme = THEMES.fog;
 
 const AI_CONFIG = {
   enabled: false,           // Flip to true when ready
-  apiKey: "",               // Your API key here
-  endpoint: "https://api.openai.com/v1/chat/completions",
-  model: "gpt-4o-mini",    // Cheap and fast for short responses
+  apiKey: "",               // Your Google AI Studio key here
+  endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+  model: "gemini-1.5-flash",
 };
 
 const AI_SYSTEM_PROMPT = `You are a quiet, compassionate witness inside a mindfulness app called "enough".
@@ -103,25 +103,17 @@ async function getAIWitness(feeling, freeText) {
   const userMessage = [feeling, freeText].filter(Boolean).join(": ") || "nothing in particular";
 
   try {
-    const res = await fetch(AI_CONFIG.endpoint, {
+    const res = await fetch(`${AI_CONFIG.endpoint}?key=${AI_CONFIG.apiKey}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${AI_CONFIG.apiKey}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: AI_CONFIG.model,
-        messages: [
-          { role: "system", content: AI_SYSTEM_PROMPT },
-          { role: "user", content: userMessage },
-        ],
-        max_tokens: 80,
-        temperature: 0.7,
+        contents: [{ parts: [{ text: `${AI_SYSTEM_PROMPT}\n\nUser: ${userMessage}` }] }],
+        generationConfig: { maxOutputTokens: 80, temperature: 0.7 },
       }),
     });
 
     const data = await res.json();
-    return data.choices?.[0]?.message?.content || pickWitness(feeling, freeText);
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || pickWitness(feeling, freeText);
   } catch {
     return pickWitness(feeling, freeText);
   }
@@ -139,25 +131,17 @@ After the user named a feeling, ask ONE short, open question to help them stay w
 - Max one sentence.`;
 
   try {
-    const res = await fetch(AI_CONFIG.endpoint, {
+    const res = await fetch(`${AI_CONFIG.endpoint}?key=${AI_CONFIG.apiKey}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${AI_CONFIG.apiKey}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: AI_CONFIG.model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        max_tokens: 50,
-        temperature: 0.7,
+        contents: [{ parts: [{ text: `${systemPrompt}\n\nUser: ${userMessage}` }] }],
+        generationConfig: { maxOutputTokens: 50, temperature: 0.8 },
       }),
     });
 
     const data = await res.json();
-    return data.choices?.[0]?.message?.content || pickDeepen(feeling, freeText);
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || pickDeepen(feeling, freeText);
   } catch {
     return pickDeepen(feeling, freeText);
   }
